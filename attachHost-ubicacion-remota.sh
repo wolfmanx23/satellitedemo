@@ -13,7 +13,7 @@ HOST_QUEUE_TOKEN="6dfac1da09f93b32efac6a9ec8cd31642d658d5fa8fa0f4ddc9439f1a26971
 set -x
 ACCOUNT_ID="c529a69d5233fbc0bc7c1ae950677e88"
 CONTROLLER_ID="c32bm51w0ebhl0uf0tig"
-SELECTOR_LABELS='{"satellite":"demo"}'
+SELECTOR_LABELS='{"sat":"demo"}'
 API_URL="https://origin.us-east.containers.cloud.ibm.com/"
 
 #shutdown known blacklisted services for Satellite (these will break kube)
