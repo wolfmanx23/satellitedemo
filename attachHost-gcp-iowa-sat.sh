@@ -9,12 +9,18 @@ if [[ -f "$HOST_ASSIGN_FLAG" ]]; then
 	exit 0
 fi
 set +x
-HOST_QUEUE_TOKEN="6dfac1da09f93b32efac6a9ec8cd31642d658d5fa8fa0f4ddc9439f1a26971c4ecf597292578bafd75801f7504a5613ef5236f5bd71d68a46629035a1ce14671847a0836c9c3355acb6df6c14ca8d6cc896cacfee1c41baa445b66704774f2e455cf00a7622466f99615d9975cfa56f02c7815538e8c0e4fe74df4b8ee39e6ce5ff20012ec92d942b14435fcdcf04703051ebe4b068b95aa3ee6c55eda6999d4e7441f54e91f35acb1fa37cd60b662e25dc1682b796b863298b7298f2be739ee00d7471d9380efbdd9741db0d0dd8d4cea65737b2c507a016c6e6355b7970487e23c3bed507b74e9f042e8a773bd9d68f3721494097be988b580c3b0b3aed8a8"
+HOST_QUEUE_TOKEN="7c151aefebb7fc1142883933384f8928462df25f845fb5ab6cd2ccac340c606d4222e12fa848850ced0f87fb73204668ad5ed95439f5707d89d7e3caa6c44811833196ed5e18891ea797199ccc5fe5f01f6cd97ec98615e81e895ba0a14c32cb6b14585c42d3375c05bb2e35c24b224fcd765850f1d3f860fd201aa2a7f326a561ef2236c104742ccbae90c5a15307fe3db9fdb44def99a0f1a58508f3c6a47cfaa7c9e8320223d6f8052013dcdbc0d7a3b6cc281da1827ab5d4fca39d6571cbb192d43aa8bb0725e43324ad354f3a326d88e7866150078be1be99e80315027d38674f300ef9d21489c87aaa79bb533f8e5526c2bed3dbbdbd4054d1657bc5d7"
 set -x
-ACCOUNT_ID="c529a69d5233fbc0bc7c1ae950677e88"
-CONTROLLER_ID="c32bm51w0ebhl0uf0tig"
-SELECTOR_LABELS='{"sat":"demo"}'
+ACCOUNT_ID="caadd3a1d7054f1b8a4b78fb75d8c1ce"
+CONTROLLER_ID="c4t7qquw079v0g00fd4g"
+SELECTOR_LABELS='{"env":"iowa"}'
 API_URL="https://origin.us-east.containers.cloud.ibm.com/"
+REGION="us-east"
+
+export HOST_QUEUE_TOKEN
+export ACCOUNT_ID
+export CONTROLLER_ID
+export REGION
 
 #shutdown known blacklisted services for Satellite (these will break kube)
 set +e
@@ -66,7 +72,22 @@ if gather_zone_info; then
 fi
 if [[ -z "$ZONE" ]]; then
 	echo "echo Probing for Azure Metadata"
+	export LOCATION_INFO=""
 	export AZURE_ZONE_NUMBER_INFO=""
+	gather_location_info() {
+		HTTP_RESPONSE=$(curl -H Metadata:true --noproxy "*" --write-out "HTTPSTATUS:%{http_code}" --max-time 10 "http://169.254.169.254/metadata/instance/compute/location?api-version=2021-01-01&format=text")
+		HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -E 's/.*HTTPSTATUS:([0-9]{3})$/\1/')
+		HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -E 's/HTTPSTATUS\:[0-9]{3}$//')
+		if [[ "$HTTP_STATUS" -ne 200 ]]; then
+			echo "bad return code"
+			return 1
+		fi
+		if [[ "$HTTP_BODY" =~ [^a-zA-Z0-9-] ]]; then
+			echo "invalid format"
+			return 1
+		fi
+		LOCATION_INFO="$HTTP_BODY"
+	}
 	gather_azure_zone_number_info() {
 		HTTP_RESPONSE=$(curl -H Metadata:true --noproxy "*" --write-out "HTTPSTATUS:%{http_code}" --max-time 10 "http://169.254.169.254/metadata/instance/compute/zone?api-version=2021-01-01&format=text")
 		HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -E 's/.*HTTPSTATUS:([0-9]{3})$/\1/')
@@ -82,10 +103,17 @@ if [[ -z "$ZONE" ]]; then
 		AZURE_ZONE_NUMBER_INFO="$HTTP_BODY"
 	}
 	gather_zone_info() {
+		if ! gather_location_info; then
+			return 1
+		fi
 		if ! gather_azure_zone_number_info; then
 			return 1
 		fi
-		ZONE="${AZURE_ZONE_NUMBER_INFO}"
+		if [[ -n "$AZURE_ZONE_NUMBER_INFO" ]]; then
+		  ZONE="${LOCATION_INFO}-${AZURE_ZONE_NUMBER_INFO}"
+		else
+		  ZONE="${LOCATION_INFO}"
+		fi
 	}
 	if gather_zone_info; then
 		echo "azure metadata detected"
@@ -125,6 +153,39 @@ cat <<EOF >register.json
 "labels": $SELECTOR_LABELS
 }
 EOF
+
+set +e
+#try to download and run host health check script
+set +x
+#first try to the satellite-health service is enabled
+HTTP_RESPONSE=$(curl --write-out "HTTPSTATUS:%{http_code}" --retry 5 --retry-delay 10 --retry-max-time 60 \
+        "${API_URL}satellite-health/api/v1/hello")
+set -x
+HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -E 's/HTTPSTATUS\:[0-9]{3}$//')
+HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -E 's/.*HTTPSTATUS:([0-9]{3})$/\1/')
+echo "$HTTP_STATUS"
+if [[ "$HTTP_STATUS" -eq 200 ]]; then
+        set +x
+        HTTP_RESPONSE=$(curl --write-out "HTTPSTATUS:%{http_code}" --retry 20 --retry-delay 10 --retry-max-time 360 \
+                "${API_URL}satellite-health/sat-host-check" -o /usr/local/bin/sat-host-check)
+        set -x
+        HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -E 's/HTTPSTATUS\:[0-9]{3}$//')
+        HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -E 's/.*HTTPSTATUS:([0-9]{3})$/\1/')
+
+        echo "$HTTP_BODY"
+        echo "$HTTP_STATUS"
+        if [[ "$HTTP_STATUS" -eq 200 ]]; then
+                chmod +x /usr/local/bin/sat-host-check
+                set +x
+                timeout 5m /usr/local/bin/sat-host-check --region $REGION --endpoint $API_URL
+                set -x
+        else
+                echo "Error downloading host health check script [HTTP status: $HTTP_STATUS]"
+        fi
+else
+        echo "Skipping downloading host health check script [HTTP status: $HTTP_STATUS]"
+fi
+set -e
 
 set +x
 #STEP 3: REGISTER HOST TO THE HOSTQUEUE. NEED TO EVALUATE HTTP STATUS 409 EXISTS, 201 created. ALL OTHERS FAIL.
