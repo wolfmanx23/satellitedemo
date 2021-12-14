@@ -68,9 +68,6 @@ REMOTEHOST=iam.bluemix.net
 REMOTEPORT=443
 
 echo "************************Validations for REMOTE HOST: ${REMOTEHOST}"
-
-echo "************************Validations for REMOTE HOST: ${REMOTEHOST}"
-
 if nc -w $TIMEOUT -z $REMOTEHOST $REMOTEPORT; then
    echo "I was able to connect to ${REMOTEHOST}:${REMOTEPORT}"
 else
