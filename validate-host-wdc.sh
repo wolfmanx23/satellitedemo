@@ -49,7 +49,7 @@ if nc -w $TIMEOUT -z $REMOTEHOST $REMOTEPORT; then
 else
    echo "Connection to ${REMOTEHOST}:${REMOTEPORT} failed. Exit code from Netcat was ($?)."
 fi
-for REMOTEHOST in 169.54.80.106 169.54.126.219 169.53.167.50 169.53.171.210 52.117.88.42 169.47.162.130 169.47.$
+for REMOTEHOST in 169.54.80.106 169.54.126.219 169.53.167.50 169.53.171.210 52.117.88.42 169.47.162.130
         do
                 echo "************************Validations for REMOTE HOST: ${REMOTEHOST}"
                 REMOTEPORT=443
@@ -92,7 +92,7 @@ for REMOTEHOST in 169.60.112.74 169.55.109.114 169.62.3.82
           	echo "************************Validations for REMOTE HOST: ${REMOTEHOST}"
                 for REMOTEPORT in 443 6443
                         do
-                          	ping -c 10 -q $REMOTEHOST $REMOTEPORT
+                          	ping -c 3 -q $REMOTEHOST $REMOTEPORT
 
                                 if nc -w $TIMEOUT -z $REMOTEHOST $REMOTEPORT; then
                                         echo "I was able to connect to ${REMOTEHOST}:${REMOTEPORT}"
@@ -163,6 +163,6 @@ for REMOTEHOST in 0.rhel.pool.ntp.org 1.rhel.pool.ntp.org 2.rhel.pool.ntp.org 3.
           	echo "************************Validations for REMOTE HOST: ${REMOTEHOST}"
                 echo " Note: if appears a message, there is an active UDP connection"
                 REMOTEPORT=123
-                        echo "Status for UDP port: 4{REMOTEPORT}"
-                        netstat -a | grep REMOTEPORT
+                        echo "Status for UDP port: 4${REMOTEPORT}"
+                        netstat -a | grep $REMOTEPORT
         done
