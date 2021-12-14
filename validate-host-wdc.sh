@@ -134,7 +134,7 @@ do
                   if nc -w $TIMEOUT -z $REMOTEHOST.$REMOTENODE $REMOTEPORT; then
                           echo "I was able to connect to  $REMOTEHOST.$REMOTENODE:$REMOTEPORT"
                   else
-                        echo "Connection to ${REMOTEHOST}:${REMOTEPORT}:${REMOTEPORT} failed."
+                        echo "Connection to ${REMOTEHOST}:${REMOTENODE}:${REMOTEPORT} failed."
                           echo "Exit code from Netcat was ($?)."
                   fi
             done
