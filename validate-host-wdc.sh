@@ -7,6 +7,7 @@
 ############
 sudo yum install ntpdate -y
 sudo yum install telnet -y
+sudo yum install -y nc
 
 TIMEOUT=5
 REMOTEPORT=443
