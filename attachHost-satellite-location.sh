@@ -9,13 +9,13 @@ if [[ -f "$HOST_ASSIGN_FLAG" ]]; then
 	exit 0
 fi
 set +x
-HOST_QUEUE_TOKEN="5ed501f4147cfb6c7a7affb299a976627a9da3130faeb9081069be4b77e95b176a0e2e4085e185304199216e05e5680d35cf431ac17d6ee759ae941e272976a96a924ebb3c81690f8b2b037a5bfc7dc3e6c26d9fed2e69ca2d567e55ac78e6209207c32b8157d26ce17ee90e46997987ba19f5f794812ec25b310e281a023960004f31d5f96b2ebc7918429ca49f69384076c61e26973aaa5bbe74ea0bff7ea2347302aa7d8036e51f1ff80ad7e15d9fa884d6e73abc6508160ac62596a75ff5e881e4e4b62f9a7301e06b6ef2a76382c0518b5bbf7328a8a4cdc7f2f6bce6fe955f907aa13b3abaad30bd83ccddfa01597eb689b3478885186ce44ccad64397"
+HOST_QUEUE_TOKEN="817ac97cedec6cac7654f977cb4da1f5d50882404e9daff49fe12916c3200bb42de38f6d517756e13f41a37d33854ec290036f4a88838ca9c6a0e364f86153998f9d4462bac406e5792d92831ec1f0fdd3159212d5336f261ab9e79f194dd365079388500c175a7e4be90fe6badcab6fddaf204b12cbad0004a93d95184aba1cf46944c7e9a8132055bb2088633afc9c850101c09e53454dff543f7f4c53ad8428d266be2533825bb719384b24bfc4aa5b4e6e1bb5f82c8ce322cb1ed6095167b8e287b990b3613f0d54cb9afa730f79eb6f26afcd72be653dfd9d5c0c749939464aa010b9ab3acbfbd88df49ca36eb6f236d4555aec3cf67d76357100f4e039"
 set -x
 ACCOUNT_ID="c529a69d5233fbc0bc7c1ae950677e88"
-CONTROLLER_ID="c56lvivd076tttff7lcg"
-SELECTOR_LABELS='{}'
-API_URL="https://origin.us-south.containers.cloud.ibm.com/"
-REGION="us-south"
+CONTROLLER_ID="c7o6c8jw07095n840pc0"
+SELECTOR_LABELS='{"env":"test"}'
+API_URL="https://origin.us-east.containers.cloud.ibm.com/"
+REGION="us-east"
 
 export HOST_QUEUE_TOKEN
 export ACCOUNT_ID
@@ -48,7 +48,26 @@ CPUS=$(nproc)
 MEMORY=$(grep MemTotal /proc/meminfo | awk '{print $2}')
 export CPUS
 export MEMORY
-SELECTOR_LABELS=$(echo "${SELECTOR_LABELS}" | python -c "import sys, json, os; z = json.load(sys.stdin); y = {\"cpu\": os.getenv('CPUS'), \"memory\": os.getenv('MEMORY')}; z.update(y); print(json.dumps(z))")
+
+set +e
+if grep -qi "coreos" < /etc/redhat-release; then
+  OPERATING_SYSTEM="RHCOS"
+elif grep -qi "maipo" < /etc/redhat-release; then
+  OPERATING_SYSTEM="RHEL7"
+elif grep -qi "ootpa" < /etc/redhat-release; then
+  OPERATING_SYSTEM="RHEL8"
+else
+  echo "Operating System not supported"
+  OPERATING_SYSTEM="UNKNOWN"
+fi
+set -e
+
+if [[ "${OPERATING_SYSTEM}" != "RHEL7" && "${OPERATING_SYSTEM}" != "RHEL8" ]]; then
+  echo "This script is only intended to run with a RHEL7 or RHEL8 operating system. Current operating system ${OPERATING_SYSTEM}. Going to continue on for backwards compatibility"
+fi
+
+export OPERATING_SYSTEM
+SELECTOR_LABELS=$(echo "${SELECTOR_LABELS}" | python -c "import sys, json, os; z = json.load(sys.stdin); y = {\"cpu\": os.getenv('CPUS'), \"memory\": os.getenv('MEMORY'), \"os\": os.getenv('OPERATING_SYSTEM')}; z.update(y); print(json.dumps(z))")
 
 set +e
 export ZONE=""
@@ -171,7 +190,6 @@ if [[ "$HTTP_STATUS" -eq 200 ]]; then
         set -x
         HTTP_BODY=$(echo "$HTTP_RESPONSE" | sed -E 's/HTTPSTATUS\:[0-9]{3}$//')
         HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tr -d '\n' | sed -E 's/.*HTTPSTATUS:([0-9]{3})$/\1/')
-
         echo "$HTTP_BODY"
         echo "$HTTP_STATUS"
         if [[ "$HTTP_STATUS" -eq 200 ]]; then
